@@ -7,9 +7,43 @@ fn main() {
     let part1 = accessible_rolls_of_paper(INPUT);
     assert_eq!(1533, part1);
     println!("{part1}");
+
+    let part2 = accessible_rolls_of_paper_iterative(INPUT);
+    assert_eq!(9206, part2);
+    println!("{part2}");
 }
 
 fn accessible_rolls_of_paper(s: &str) -> usize {
+    let board = parse_board(s);
+
+    find_accessible_rolls_of_paper(&board).count()
+}
+
+fn accessible_rolls_of_paper_iterative(s: &str) -> usize {
+    let mut board = parse_board(s);
+    let mut to_remove = Vec::new();
+    let mut total_removed = 0;
+
+    loop {
+        to_remove.clear();
+        to_remove.extend(find_accessible_rolls_of_paper(&board));
+
+        if to_remove.is_empty() {
+            break;
+        }
+
+        for removed in &to_remove {
+            board.remove(removed);
+        }
+        total_removed += to_remove.len();
+    }
+
+    total_removed
+}
+
+type Board = BTreeSet<(usize, usize)>;
+
+fn parse_board(s: &str) -> Board {
     let mut board = BTreeSet::new();
 
     for (y, l) in s.lines().enumerate() {
@@ -20,6 +54,10 @@ fn accessible_rolls_of_paper(s: &str) -> usize {
         }
     }
 
+    board
+}
+
+fn find_accessible_rolls_of_paper(board: &Board) -> impl Iterator<Item = (usize, usize)> {
     board
         .iter()
         .filter(|(x, y)| {
@@ -34,7 +72,7 @@ fn accessible_rolls_of_paper(s: &str) -> usize {
 
             occupied_neighbors < 4
         })
-        .count()
+        .copied()
 }
 
 fn neighbor_offsets() -> impl Iterator<Item = (isize, isize)> {
@@ -60,5 +98,10 @@ mod test {
     #[test]
     fn neighbor_offsets_exercise() {
         assert_eq!(8, neighbor_offsets().count());
+    }
+
+    #[test]
+    fn part2_example() {
+        assert_eq!(43, accessible_rolls_of_paper_iterative(EXAMPLE));
     }
 }
