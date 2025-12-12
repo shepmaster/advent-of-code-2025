@@ -4,6 +4,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const INPUT: &str = include_str!("../input.txt");
 
+// After sleeping on it, I realized I could fuse all the logic steps I
+// did previously into a single function. I'd already submitted my
+// answers with the non-efficient version, so just hackily add this
+// efficient way.
+//
+// Original: 5594 ms and 1872 KiB
+// Efficient: 3.0ms and 1904 KiB
+const IMPROVED_IMPLEMENTATION: bool = false;
+
 fn main() {
     let part1 = n_paths_to_output(INPUT);
     assert_eq!(649, part1);
@@ -20,20 +29,24 @@ fn n_paths_to_output(s: &str) -> usize {
     const START_NODE: &str = "you";
     const END_NODE: &str = "out";
 
-    let mut to_visit = vec![START_NODE];
-    let mut n_paths = 0;
+    if IMPROVED_IMPLEMENTATION {
+        n_paths_fast(&graph, START_NODE, END_NODE)
+    } else {
+        let mut to_visit = vec![START_NODE];
+        let mut n_paths = 0;
 
-    while let Some(node) = to_visit.pop() {
-        if node == END_NODE {
-            n_paths += 1;
-        } else {
-            for &connection in &graph[node] {
-                to_visit.push(connection);
+        while let Some(node) = to_visit.pop() {
+            if node == END_NODE {
+                n_paths += 1;
+            } else {
+                for &connection in &graph[node] {
+                    to_visit.push(connection);
+                }
             }
         }
-    }
 
-    n_paths
+        n_paths
+    }
 }
 
 fn n_paths_svr_to_out_via_dac_and_fft(s: &str) -> usize {
@@ -46,10 +59,16 @@ fn n_paths_svr_to_out_via_dac_and_fft(s: &str) -> usize {
     const POINT1: &str = "dac";
     const POINT2: &str = "fft";
 
-    if reachable(&graph, POINT1, POINT2) {
+    #[expect(clippy::collapsible_else_if)]
+    if IMPROVED_IMPLEMENTATION {
         n_paths_for_points(&graph, &[START_NODE, POINT1, POINT2, END_NODE])
+            + n_paths_for_points(&graph, &[START_NODE, POINT2, POINT1, END_NODE])
     } else {
-        n_paths_for_points(&graph, &[START_NODE, POINT2, POINT1, END_NODE])
+        if reachable(&graph, POINT1, POINT2) {
+            n_paths_for_points(&graph, &[START_NODE, POINT1, POINT2, END_NODE])
+        } else {
+            n_paths_for_points(&graph, &[START_NODE, POINT2, POINT1, END_NODE])
+        }
     }
 }
 
@@ -95,9 +114,13 @@ fn n_paths_for_points(graph: &Graph, points: &[&str]) -> usize {
     points
         .array_windows()
         .map(|[s, e]| {
-            let within = all_nodes(graph, s, e);
-            // eprintln!("{s} -> {e}: {within:?}");
-            n_paths(graph, s, e, &within)
+            if IMPROVED_IMPLEMENTATION {
+                n_paths_fast(graph, s, e)
+            } else {
+                let within = all_nodes(graph, s, e);
+                // eprintln!("{s} -> {e}: {within:?}");
+                n_paths(graph, s, e, &within)
+            }
         })
         .product()
 }
@@ -212,6 +235,34 @@ fn n_paths(graph: &Graph, start_node: &str, end_node: &str, within: &BTreeSet<&s
     recur(graph, start_node, end_node, within, &mut n_paths);
 
     n_paths
+}
+
+fn n_paths_fast(graph: &Graph, start_node: &str, end_node: &str) -> usize {
+    fn recur<'a>(
+        cache: &mut BTreeMap<&'a str, usize>,
+        graph: &Graph<'a>,
+        node: &'a str,
+        end_node: &'a str,
+    ) -> usize {
+        if let Some(&n_paths) = cache.get(node) {
+            return n_paths;
+        }
+
+        let n_paths = if node == end_node {
+            1
+        } else {
+            neighbors(graph, node)
+                .iter()
+                .map(|&neighbor| recur(cache, graph, neighbor, end_node))
+                .sum()
+        };
+
+        *cache.entry(node).or_insert(n_paths)
+    }
+
+    let mut cache = Default::default();
+
+    recur(&mut cache, graph, start_node, end_node)
 }
 
 #[cfg(test)]
